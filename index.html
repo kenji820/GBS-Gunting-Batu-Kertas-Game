@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Batu Kertas Gunting (C++ + WebAssembly)</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: system-ui, sans-serif;
+      background: linear-gradient(135deg, #1e293b, #334155);
+      color: #f1f5f9;
+    }
+    .card {
+      width: min(440px, 92vw);
+      padding: 28px;
+      border-radius: 20px;
+      background: #0f172a;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, .4);
+      text-align: center;
+    }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; }
+    .sub { margin: 0 0 20px; color: #94a3b8; font-size: .85rem; }
+    .scoreboard { display: flex; gap: 10px; margin-bottom: 20px; }
+    .score { flex: 1; padding: 10px; border-radius: 12px; background: #1e293b; }
+    .score span { display: block; font-size: 1.8rem; font-weight: 700; }
+    .score small { color: #94a3b8; }
+    .choices { display: flex; gap: 10px; margin-bottom: 20px; }
+    .choices button {
+      flex: 1;
+      padding: 16px 0;
+      font-size: 2.2rem;
+      border: 2px solid transparent;
+      border-radius: 14px;
+      background: #1e293b;
+      cursor: pointer;
+      transition: transform .1s, border-color .1s;
+    }
+    .choices button small { display: block; font-size: .75rem; color: #cbd5e1; margin-top: 4px; }
+    .choices button:hover:not(:disabled) { transform: translateY(-3px); border-color: #38bdf8; }
+    .choices button:disabled { opacity: .4; cursor: not-allowed; }
+    .arena { min-height: 90px; margin-bottom: 16px; }
+    .versus { font-size: 2.4rem; }
+    #hasil { margin-top: 6px; font-size: 1.2rem; font-weight: 700; }
+    .menang { color: #4ade80; }
+    .kalah { color: #f87171; }
+    .seri { color: #facc15; }
+    .reset {
+      padding: 10px 22px;
+      border: 0;
+      border-radius: 10px;
+      background: #334155;
+      color: #f1f5f9;
+      cursor: pointer;
+    }
+    .reset:hover { background: #475569; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>✊ ✋ ✌️ Batu Kertas Gunting</h1>
+    <p class="sub">Logika game berjalan di C++ (WebAssembly)</p>
+
+    <div class="scoreboard">
+      <div class="score"><span id="skorPemain">0</span><small>Kamu</small></div>
+      <div class="score"><span id="skorSeri">0</span><small>Seri</small></div>
+      <div class="score"><span id="skorKomputer">0</span><small>Komputer</small></div>
+    </div>
+
+    <div class="choices">
+      <button id="btn0" onclick="main(0)" disabled>✊<small>Batu</small></button>
+      <button id="btn1" onclick="main(1)" disabled>✋<small>Kertas</small></button>
+      <button id="btn2" onclick="main(2)" disabled>✌️<small>Gunting</small></button>
+    </div>
+
+    <div class="arena">
+      <div class="versus" id="versus">❔ vs ❔</div>
+      <div id="hasil">Memuat game...</div>
+    </div>
+
+    <button class="reset" onclick="ulang()">Reset Skor</button>
+  </div>
+
+  <script>
+    const emoji = ["✊", "✋", "✌️"];
+    const nama = ["Batu", "Kertas", "Gunting"];
+    let wasm = {};
+
+    // Harus didefinisikan SEBELUM game.js dimuat.
+    var Module = {
+      onRuntimeInitialized: function () {
+        // Hubungkan fungsi C++ ke JavaScript
+        wasm.init = Module.cwrap('init_game', null, []);
+        wasm.play = Module.cwrap('play_round', 'number', ['number']);
+        wasm.comp = Module.cwrap('get_computer_choice', 'number', []);
+        wasm.skorP = Module.cwrap('get_player_score', 'number', []);
+        wasm.skorK = Module.cwrap('get_computer_score', 'number', []);
+        wasm.seri = Module.cwrap('get_draws', 'number', []);
+        wasm.reset = Module.cwrap('reset_game', null, []);
+
+        wasm.init();
+        for (let i = 0; i < 3; i++) document.getElementById('btn' + i).disabled = false;
+        document.getElementById('hasil').textContent = "Pilih salah satu!";
+      }
+    };
+
+    function main(pilihan) {
+      const hasil = wasm.play(pilihan);   // dihitung oleh C++
+      const komputer = wasm.comp();       // pilihan komputer dari C++
+
+      document.getElementById('versus').textContent =
+        `${emoji[pilihan]} vs ${emoji[komputer]}`;
+
+      const el = document.getElementById('hasil');
+      if (hasil === 1) { el.textContent = "Kamu menang! 🎉"; el.className = "menang"; }
+      else if (hasil === 2) { el.textContent = "Komputer menang 😢"; el.className = "kalah"; }
+      else { el.textContent = "Seri!"; el.className = "seri"; }
+
+      perbaruiSkor();
+    }
+
+    function perbaruiSkor() {
+      document.getElementById('skorPemain').textContent = wasm.skorP();
+      document.getElementById('skorSeri').textContent = wasm.seri();
+      document.getElementById('skorKomputer').textContent = wasm.skorK();
+    }
+
+    function ulang() {
+      wasm.reset();
+      perbaruiSkor();
+      document.getElementById('versus').textContent = "❔ vs ❔";
+      const el = document.getElementById('hasil');
+      el.textContent = "Pilih salah satu!";
+      el.className = "";
+    }
+  </script>
+  <script src="game.js"></script>
+</body>
+</html>
