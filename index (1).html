@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Tic Tac Toe</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{--bg:#f2eee4;--ink:#23272c;--mute:#7b7f84;--line:#cfc8b8;--x:#c4533a;--o:#2b7a88;--hi:rgba(35,39,44,.05);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1a1c1f;--ink:#ece8de;--mute:#8c8f94;--line:#3a3d42;--x:#e8765d;--o:#52b0bf;--hi:rgba(236,232,222,.06)}}
+:root[data-theme="dark"]{--bg:#1a1c1f;--ink:#ece8de;--mute:#8c8f94;--line:#3a3d42;--x:#e8765d;--o:#52b0bf;--hi:rgba(236,232,222,.06)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;justify-content:center}
+.app{width:100%;max-width:380px;padding:22px 20px}
+h1{font:italic 400 2rem Georgia,"Times New Roman",serif;margin:0 0 18px;text-align:center;letter-spacing:.01em}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:10px;padding:3px;margin-bottom:20px}
+.seg button{border:0;background:none;color:var(--mute);padding:9px 0;border-radius:8px;font-size:.88rem;cursor:pointer}
+.seg button.on{background:var(--ink);color:var(--bg)}
+.score{display:grid;grid-template-columns:1fr 1fr 1fr;text-align:center;margin-bottom:14px}
+.score div{padding:4px 0 8px;border-bottom:2px solid transparent;color:var(--mute);font-size:.78rem;letter-spacing:.08em;text-transform:uppercase}
+.score b{display:block;font:400 1.7rem Georgia,serif;color:var(--ink);letter-spacing:0;margin-top:2px}
+.score div.act{border-color:currentColor}
+#sx.act{color:var(--x)}#so.act{color:var(--o)}
+#status{text-align:center;height:24px;margin-bottom:12px;font-size:1rem}
+#status i{font:italic 700 1.1rem Georgia,serif;font-style:normal}
+.board{position:relative;width:100%;aspect-ratio:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr))}
+.cell{position:relative;min-width:0;min-height:0;padding:0;margin:0;overflow:hidden;background:none;border:0;border-right:2px solid var(--line);border-bottom:2px solid var(--line);cursor:pointer}
+.cell:nth-child(3n){border-right:0}
+.cell:nth-child(n+7){border-bottom:0}
+.cell:not(.f):not(:disabled):hover{background:var(--hi)}
+.cell svg{position:absolute;inset:20%;width:60%;height:60%}
+.mk{fill:none;stroke-width:9;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:1;animation:dr .32s ease-out forwards}
+.X .mk{stroke:var(--x)}.O .mk{stroke:var(--o)}
+@keyframes dr{to{stroke-dashoffset:0}}
+.strike{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.strike line{stroke-width:7;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:1;animation:dr .45s .1s ease-out forwards}
+.row{display:flex;gap:10px;margin-top:22px}
+.btn{flex:1;padding:13px;border-radius:10px;font-size:.95rem;cursor:pointer;border:1px solid var(--ink);background:var(--ink);color:var(--bg)}
+.btn.ghost{background:none;color:var(--ink);border-color:var(--line)}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>Tic Tac Toe</h1>
+<div class="seg">
+<button id="b2p" class="on">2 Pemain</button>
+<button id="bes">Mudah</button>
+<button id="bhd">Sulit</button>
+</div>
+<div class="score">
+<div id="sx">X<b id="nx">0</b></div>
+<div id="ss">Seri<b id="ns">0</b></div>
+<div id="so">O<b id="no">0</b></div>
+</div>
+<div id="status"></div>
+<div class="board" id="board"></div>
+<div class="row">
+<button class="btn" id="again">Ronde baru</button>
+<button class="btn ghost" id="clear">Reset skor</button>
+</div>
+</div>
+<script>
+// Antarmuka web. Seluruh logika permainan ada di tictactoe.cpp (dikompilasi ke WebAssembly).
+var NS='http://www.w3.org/2000/svg';
+var T=null,mode='2p',busy=false,sc={X:0,O:0,S:0};
+var boardEl=document.getElementById('board'),st=document.getElementById('status');
+var cells=[];
+for(var i=0;i<9;i++){var c=document.createElement('button');c.className='cell';c.setAttribute('aria-label','Kotak '+(i+1));c.onclick=(function(n){return function(){tap(n)}})(i);boardEl.appendChild(c);cells.push(c)}
+
+var Module={onRuntimeInitialized:function(){
+  T={reset:Module.cwrap('ttt_reset',null,[]),langkah:Module.cwrap('ttt_langkah','number',['number']),
+     giliran:Module.cwrap('ttt_giliran','number',[]),isi:Module.cwrap('ttt_isi','number',['number']),
+     status:Module.cwrap('ttt_status','number',[]),garis:Module.cwrap('ttt_garis','number',['number']),
+     komputer:Module.cwrap('ttt_komputer','number',['number'])};
+  round();
+}};
+setTimeout(function(){if(!T)say(null,'Mesin C++ belum termuat. Buka lewat server, bukan file langsung.')},4000);
+
+function ch(n){return String.fromCharCode(n)}
+function mark(i,p){
+  var c=cells[i];c.classList.add('f',p);
+  c.innerHTML=p==='X'
+    ?'<svg viewBox="0 0 100 100"><path class="mk" pathLength="1" d="M14 14L86 86M86 14L14 86"/></svg>'
+    :'<svg viewBox="0 0 100 100"><circle class="mk" pathLength="1" cx="50" cy="50" r="36"/></svg>';
+}
+function strike(l,p){
+  var ctr=function(i){return [(i%3)*100+50,Math.floor(i/3)*100+50]};
+  var a=ctr(l[0]),z=ctr(l[2]),dx=z[0]-a[0],dy=z[1]-a[1],n=Math.sqrt(dx*dx+dy*dy),ux=dx/n*28,uy=dy/n*28;
+  var s=document.createElementNS(NS,'svg');s.setAttribute('class','strike');s.setAttribute('viewBox','0 0 300 300');
+  var ln=document.createElementNS(NS,'line');
+  ln.setAttribute('x1',a[0]-ux);ln.setAttribute('y1',a[1]-uy);ln.setAttribute('x2',z[0]+ux);ln.setAttribute('y2',z[1]+uy);
+  ln.setAttribute('pathLength','1');ln.style.stroke=p==='X'?'var(--x)':'var(--o)';
+  s.appendChild(ln);boardEl.appendChild(s);
+}
+function say(p,t){st.innerHTML=p?'<i style="color:var(--'+p.toLowerCase()+')">'+p+'</i> '+t:t}
+function marker(){
+  var run=T&&T.status()===0,g=run?ch(T.giliran()):'';
+  document.getElementById('sx').className=g==='X'?'act':'';
+  document.getElementById('so').className=g==='O'?'act':'';
+}
+function scores(){nx.textContent=sc.X;no.textContent=sc.O;ns.textContent=sc.S}
+
+function round(){
+  if(!T)return;
+  T.reset();busy=false;
+  var old=boardEl.querySelector('.strike');if(old)boardEl.removeChild(old);
+  cells.forEach(function(c){c.className='cell';c.innerHTML='';c.disabled=false});
+  say('X','jalan');marker();
+}
+function after(p){
+  var s=T.status();
+  if(s===1||s===2){strike([T.garis(0),T.garis(1),T.garis(2)],p);sc[p]++;say(p,'menang');scores();finish()}
+  else if(s===3){sc.S++;say(null,'Seri, tidak ada pemenang');scores();finish()}
+  else{say(ch(T.giliran()),'jalan');marker()}
+}
+function finish(){marker();cells.forEach(function(c){c.disabled=true})}
+function tap(i){
+  if(!T||busy||T.status()!==0)return;
+  var p=ch(T.giliran());
+  if(mode!=='2p'&&p==='O')return;
+  if(!T.langkah(i))return;
+  mark(i,p);after(p);
+  if(mode!=='2p'&&T.status()===0){
+    busy=true;
+    setTimeout(function(){
+      var m=T.komputer(mode==='hard'?2:1);
+      if(m>=0){mark(m,'O');after('O')}
+      busy=false;
+    },420);
+  }
+}
+
+function setMode(m){
+  mode=m;
+  b2p.className=m==='2p'?'on':'';bes.className=m==='easy'?'on':'';bhd.className=m==='hard'?'on':'';
+  sc={X:0,O:0,S:0};scores();round();
+}
+b2p.onclick=function(){setMode('2p')};
+bes.onclick=function(){setMode('easy')};
+bhd.onclick=function(){setMode('hard')};
+again.onclick=round;
+clear.onclick=function(){sc={X:0,O:0,S:0};scores();round()};
+say(null,'Memuat mesin C++...');
+</script>
+<script src="tictactoe.js"></script>
+</body>
+</html>
